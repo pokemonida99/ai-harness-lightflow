@@ -1,0 +1,17 @@
+{
+  "name": "ai-harness-lightflow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI Harness 光流實驗場：把〈AI Harness 模擬測試架構〉圖解改編成 Three.js 霓虹 3D 互動網頁",
+  "scripts": {
+    "build": "esbuild src/main.js --bundle --format=iife --target=es2020 --outfile=app.js",
+    "music": "python3 tools/edit_music.py && python3 tools/audio_env.py",
+    "mix": "python3 tools/mix_sfx.py",
+    "video": "node tools/record.mjs video silent.mp4 30"
+  },
+  "devDependencies": {
+    "esbuild": "0.20.2",
+    "puppeteer-core": "^22.0.0",
+    "three": "0.160.0"
+  }
+}

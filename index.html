@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Harness 光流實驗場</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#e4fbff;--dim:#7fa3b4;--cy:#35e6ff;--or:#ff8424;--gold:#ffd49a;--red:#ff4a60;--green:#4dffb0;
+  --en:"Orbitron","Rajdhani","Avenir Next Condensed","DIN Alternate",sans-serif;--zh:"PingFang TC","Noto Sans TC","Heiti TC",sans-serif}
+html,body{margin:0;height:100%;background:#010308;overflow:hidden;color:var(--ink);font-family:var(--zh)}
+#stage{position:fixed;inset:0;overflow:hidden;background:#010308}
+#stage canvas{position:absolute;inset:0;display:block}
+.labels{position:absolute;inset:0;pointer-events:none}
+.rec #stage{width:1920px;height:1080px}
+
+/* 3D 標籤：全息介面 */
+.lab{font-size:clamp(11px,.9vw,17px);font-weight:600;letter-spacing:.1em;white-space:nowrap;color:#d8faff;text-shadow:0 0 10px rgba(53,230,255,.75),0 1px 2px #000;pointer-events:none;text-align:center;line-height:1.25}
+.lab small{display:block;font-family:var(--en);font-size:.56em;font-weight:700;letter-spacing:.32em;color:#7fe9ff;margin-bottom:.35em}
+.lab.big{font-size:clamp(14px,1.35vw,26px);font-weight:800;letter-spacing:.16em}
+.lab.big b{font-family:var(--en);font-weight:900;color:#fff}
+.lab.gold{color:#ffe2b8;text-shadow:0 0 12px rgba(255,180,90,.8),0 1px 2px #000}.lab.gold small{color:#ffc27a}
+.lab.orange{color:#ffc79a;text-shadow:0 0 12px rgba(255,120,30,.85),0 1px 2px #000}.lab.orange small{color:#ff9a4a}
+.lab.red{color:#ff8c9a;text-shadow:0 0 12px rgba(255,40,70,.8),0 1px 2px #000}
+.lab.green{color:#9dffd4;text-shadow:0 0 12px rgba(60,255,170,.8),0 1px 2px #000}
+.lab.sm{font-size:clamp(9px,.68vw,13px);font-weight:600;color:#a8d6e4;letter-spacing:.16em}
+.lab.tag{padding:.28em .8em;border:1px solid rgba(53,230,255,.55);background:rgba(2,14,22,.62);clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+.lab.tag.red{border-color:rgba(255,74,96,.7);background:rgba(30,4,8,.6)}
+.lab.tag.gold,.lab.tag.green{border-color:rgba(255,212,154,.65);background:rgba(28,18,4,.55)}
+.lab.tag.green{border-color:rgba(77,255,176,.6);background:rgba(3,24,16,.55)}
+.lab.tag.orange{border-color:rgba(255,132,36,.7);background:rgba(30,12,2,.55)}
+.lab.tagc small{color:#7fe9ff}
+.lab.ab{font-size:clamp(12px,1.05vw,20px);font-weight:700}.lab.ab b{font-family:var(--en);font-size:1.7em;margin-right:.35em;vertical-align:-.12em}
+.lab.cy{color:#bff6ff}.lab.or{color:#ffd0a8;text-shadow:0 0 12px rgba(255,120,30,.8),0 1px 2px #000}
+.lab.meter{font-family:var(--en);font-size:clamp(12px,1.1vw,21px);font-weight:700;letter-spacing:.12em}
+.lab .cy{color:#7fe9ff}.lab .gd{color:#ffc27a}
+.card{width:clamp(180px,15vw,300px);padding:.9em 1.1em;font-size:clamp(10px,.8vw,15px);line-height:1.65;color:#d4f4ff;background:linear-gradient(135deg,rgba(2,20,30,.86),rgba(1,6,12,.74));border:1px solid rgba(53,230,255,.3);border-left:3px solid var(--c,#35e6ff);backdrop-filter:blur(6px);box-shadow:0 0 30px rgba(53,230,255,.15),0 10px 40px rgba(0,0,0,.6);pointer-events:none;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%)}
+.card h4{margin:0 0 .35em;font-size:1.2em;letter-spacing:.12em;color:var(--c,#35e6ff)}
+.card p{margin:0}
+
+/* HUD */
+#hud{position:absolute;left:3vw;top:3.4vh;pointer-events:none}
+#hud .brand{font-family:var(--en);font-size:clamp(14px,1.3vw,25px);font-weight:900;letter-spacing:.3em;color:#e9fdff;text-shadow:0 0 14px rgba(53,230,255,.7)}
+#hud .brand span{font-family:var(--zh);font-size:.62em;font-weight:600;color:#9fd4e2;letter-spacing:.3em;margin-left:.9em}
+#hud .step{margin-top:.9vh;font-family:var(--en);font-size:clamp(10px,.8vw,15px);color:#86b8c8;letter-spacing:.25em}
+#hud .step b{color:var(--cy);font-size:1.5em;margin:0 .2em}
+#hud .step em{font-family:var(--zh);font-style:normal;color:var(--ink);margin-left:.8em;font-weight:700;letter-spacing:.25em}
+#hud .bar{margin-top:1vh;width:clamp(150px,14vw,280px);height:2px;background:rgba(53,230,255,.16);position:relative}
+#hud .bar u{position:absolute;left:0;top:0;bottom:0;background:var(--cy);box-shadow:0 0 10px var(--cy)}
+#tc{position:absolute;right:3vw;top:3.6vh;font-family:var(--en);font-size:clamp(9px,.7vw,13px);letter-spacing:.22em;color:#6f9fb0;pointer-events:none;text-align:right}
+#tc i{display:inline-block;width:.6em;height:.6em;border-radius:50%;background:var(--cy);margin-right:.7em;box-shadow:0 0 8px var(--cy);animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.25}}
+
+#cap{position:absolute;left:0;right:0;bottom:13vh;text-align:center;font-size:clamp(20px,2.5vw,48px);font-weight:800;letter-spacing:.16em;pointer-events:none;color:#effdff;text-shadow:0 0 22px rgba(53,230,255,.55),0 0 2px #000,0 2px 6px #000}
+#cap span{display:inline-block;will-change:transform,opacity,filter}
+#cap.red{color:#ffb0ba;text-shadow:0 0 22px rgba(255,40,70,.7),0 2px 6px #000}
+#cap.gold{color:#ffe6c2;text-shadow:0 0 24px rgba(255,170,70,.75),0 2px 6px #000}
+#cap.green{color:#c8ffe6;text-shadow:0 0 22px rgba(60,255,170,.65),0 2px 6px #000}
+.rec #cap{bottom:9vh}
+
+#endcard{position:absolute;left:0;right:0;top:30%;text-align:center;pointer-events:none;opacity:0}
+#endcard .k{font-family:var(--en);font-size:clamp(12px,1vw,19px);letter-spacing:.6em;color:#7fe9ff}
+#endcard h1{margin:.3em 0 0;font-family:var(--en);font-size:clamp(40px,5.2vw,100px);font-weight:900;letter-spacing:.18em;color:#f2feff;text-shadow:0 0 30px rgba(53,230,255,.8),0 0 80px rgba(53,230,255,.4)}
+#endcard h2{margin:.2em 0 0;font-size:clamp(20px,2.3vw,44px);font-weight:800;letter-spacing:.4em;text-indent:.4em;color:#e6fbff;text-shadow:0 0 20px rgba(53,230,255,.6)}
+#endcard div{margin-top:2vh;font-size:clamp(12px,1.05vw,20px);color:#a9d6e2;letter-spacing:.24em}
+#credit{position:absolute;left:0;right:0;bottom:3vh;text-align:center;font-size:clamp(9px,.66vw,13px);color:#5f8796;letter-spacing:.12em;pointer-events:none;opacity:0}
+.rec #credit{bottom:3.6vh}
+
+/* 控制列 */
+#ctrl{position:absolute;left:50%;bottom:3vh;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:9px 13px;background:rgba(1,10,16,.74);border:1px solid rgba(53,230,255,.28);backdrop-filter:blur(10px);box-shadow:0 0 30px rgba(53,230,255,.12),0 10px 40px rgba(0,0,0,.6);clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)}
+#ctrl button{font:inherit;font-size:13px;color:var(--ink);background:transparent;border:1px solid rgba(53,230,255,.25);padding:7px 12px;cursor:pointer;letter-spacing:.08em;white-space:nowrap}
+#ctrl button:hover{border-color:var(--cy);color:#fff;box-shadow:0 0 12px rgba(53,230,255,.35)}
+#ctrl #play{background:linear-gradient(135deg,rgba(53,230,255,.3),rgba(20,120,160,.3));border-color:var(--cy);font-weight:700;min-width:7.4em}
+#steps{display:flex;gap:5px}
+#steps button{padding:6px 9px}
+#steps button.on{background:rgba(53,230,255,.18);border-color:var(--cy);color:#fff}
+#scrub{width:clamp(80px,10vw,200px);accent-color:#35e6ff}
+#hint{position:absolute;right:3vw;bottom:3.6vh;font-size:12px;color:#5f8796;letter-spacing:.12em;pointer-events:none;text-align:right;line-height:1.8}
+#director{position:absolute;right:3vw;top:9vh;font:inherit;font-size:13px;color:var(--ink);background:rgba(1,10,16,.74);border:1px solid rgba(53,230,255,.5);padding:8px 14px;cursor:pointer;display:none;letter-spacing:.1em}
+#intro{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(1,3,8,.3),rgba(1,3,8,.88));transition:opacity .8s}
+#intro .k{font-family:var(--en);letter-spacing:.6em;color:#7fe9ff;font-size:clamp(11px,.9vw,16px)}
+#intro h1{margin:.3em 0 0;font-family:var(--en);font-size:clamp(38px,5.4vw,96px);font-weight:900;letter-spacing:.16em;text-shadow:0 0 30px rgba(53,230,255,.8)}
+#intro h2{margin:.1em 0 0;font-size:clamp(18px,2vw,36px);letter-spacing:.4em;text-indent:.4em}
+#intro p{color:#9fc8d6;letter-spacing:.24em;margin:1.4em 0 2.4em;font-size:clamp(12px,1vw,18px)}
+#intro button{font:inherit;font-size:18px;font-weight:800;letter-spacing:.3em;color:#fff;background:linear-gradient(135deg,rgba(53,230,255,.45),rgba(10,90,130,.6));border:1px solid var(--cy);padding:16px 40px;cursor:pointer;box-shadow:0 0 40px rgba(53,230,255,.45);clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)}
+#intro a{margin-top:1.4em;color:#7fa3b4;font-size:13px;letter-spacing:.2em;cursor:pointer;text-decoration:underline}
+.rec #ctrl,.rec #hint,.rec #director,.rec #intro{display:none!important}
+@media (max-width:1180px){#hint{display:none}}
+@media (max-width:860px){#steps button span{display:none}#scrub{display:none}#ctrl{gap:5px;padding:8px}}
+</style></head>
+<body>
+<div id="stage"></div>
+<div id="hud"><div class="brand">AI HARNESS<span>模擬測試架構</span></div>
+  <div class="step">STEP<b id="stepNo">01</b>/ 07<em id="stepName">真實數據</em></div><div class="bar"><u id="bar"></u></div></div>
+<div id="tc"><i></i><span id="tcv">SIM RUN 01</span></div>
+<div id="cap"></div>
+<div id="endcard"><div class="k">AI TESTING FRAMEWORK</div><h1>AI HARNESS</h1><h2>模擬測試架構</h2><div>用真實數據模擬 A/B 版本，再回到真實用戶閉環驗證</div></div>
+<div id="credit">Music: “Chase Quantized” 使用者以 SUNO 生成（授權）　／　音效：ElevenLabs 生成　／　改編自〈AI Harness 模擬測試架構〉圖解 · 練習作品</div>
+<button id="director">🎥 回到導演視角</button>
+<div id="ctrl">
+  <button id="prev">←</button>
+  <button id="play">▶ 開始模擬</button>
+  <button id="next">→</button>
+  <div id="steps"></div>
+  <input id="scrub" type="range" min="0" max="96" step="0.05" value="0">
+  <button id="snd">🔊</button>
+</div>
+<div id="hint">拖曳旋轉 · 滾輪縮放 · 右鍵平移<br>點節點跳到該段 · 點地面打出光波 · 雙擊投放一顆數據光點</div>
+<div id="intro"><div class="k">AI TESTING FRAMEWORK</div><h1>AI HARNESS</h1><h2>光流實驗場</h2><p>用真實數據模擬 A/B 版本，再回到真實用戶閉環驗證</p><button id="go">▶ 開始模擬</button><a id="explore">先自己逛逛</a></div>
+<script>if(/[?&]rec=1/.test(location.search))document.documentElement.classList.add('rec')</script>
+<script src="timing.js"></script>
+<script src="audio_env.js"></script>
+<script src="app.js"></script>
+</body></html>
