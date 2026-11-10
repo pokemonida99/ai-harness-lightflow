@@ -56,7 +56,16 @@ Pk('whoosh', 1.2, .3, -.4, .55); On('energy_pulse', 4.4, .45, -.5, .8)
 for i in range(4): On('chime', 7.1 + i * .75, .14, -.45 + i * .3, 1.5 + i * .12, 1.2)
 On('lock_on', 10.2 - .64, .22)
 # 假設核心組裝
-Pk('glass_assemble', 13.2, .5); On('impact', 13.2, .3)
+# 碎片：飛來（唰）→ 逐片卡入（棘輪般的重咔）→ 合體（嘣）
+def assemble(n_land0, n_boom, g=1.):
+    for k in range(20):
+        n = n_land0 + k / 19 * 1.3
+        On('typewriter_key', n - .01, .2 * g * J(.15), rng.uniform(-.35, .35), .62 * J(.06), .3)
+        On('slam', n - .02, .07 * g, rng.uniform(-.3, .3), 1.9 * J(.05))
+    Pk('glass_assemble', n_boom, .22 * g)
+    On('impact', n_boom, .7 * g); On('slam', n_boom, .55 * g, 0, .72)
+Pk('whoosh', 11.6, .4, -.2, .7)
+assemble(11.85, 13.2)
 # 金絲雀（兩輪）
 for l0, l1, okT, gg in ((15.6, 17.6, 19.8, 1.), (52.2, 53.3, 54.8, .8)):
     On('energy_pulse', l0, .45 * gg, -.3, 1.2); Pk('whoosh', l0 + .5, .2 * gg, -.2, 1.15)
@@ -74,15 +83,18 @@ On('energy_pulse', 37.6, .35, .3, .75)
 for i, n in enumerate((39.6, 40.9, 41.9, 42.7, 43.3, 43.8)): On('energy_pulse', n, .45 + i * .06, -.4 + i * .16, .9 + i * .08, 1.0)
 Pk('whoosh', 44.4, .26, -.3, .9)
 # 修正假設：拆解、重組
-On('glass_shatter', 46.4, .3, 0, 1.15); Pk('glass_assemble', 50.2, .55); On('chime', 50.2, .3, 0, 1.12, 1.6)
+Pk('whoosh', 46.5, .55, 0, .75); Pk('whoosh', 46.55, .35, .4, .95); On('glass_shatter', 46.4, .28, 0, 1.15)
+assemble(48.85, 50.2, 1.1); On('chime', 50.25, .18, 0, 1.12, 1.6)
 # 是 → 離開結界
-On('impact', 64.0, .55); On('chime', 64.0, .3, 0, 1.5, 1.6); Pk('whoosh', 65.0, .4, .2, 1.0)
+On('impact', 64.0, .6); On('slam', 64.0, .4, 0, .78); On('chime', 64.0, .22, 0, 1.5, 1.6); Pk('whoosh', 65.0, .4, .2, 1.0)
 On('notes_flutter', 66.2, .25, .3, 1.3)
 # 實測回饋：沿大光弧回到 INPUT
 On('energy_pulse', 72.6, .4, .5, .7); end('riser', tA(76.2), .25); On('chime', 76.2, .3, -.5, 1.0, 1.6)
 On('lock_on', 78.0 - .64, .25)
 # OUTPUT 點燃
 On('resolve', 80.0, .75); On('impact', 80.0, .45)
+# 跟光鏡頭起跑的風切
+for n in (4.5, 22.1, 34.6, 37.7, 43.9, 52.3, 64.3, 72.7): Pk('whoosh', n + .35, .2, rng.uniform(-.3, .3), .85)
 # 片尾
 On('chime', 84.8, .2, 0, .75)
 # 有旁白後，字幕不再加打字聲
@@ -99,7 +111,9 @@ import json
 vsrc = dec('work/narration_norm.wav')   # 由 vo/narration_chuck_miller.mp3 經 highpass＋壓縮＋loudnorm 產生
 VSEG = json.load(open('vo/vo_segs.json'))
 VSTART = [1.12, 7.99, 15.23, 19.60, 24.84, 30.45, 36.69, 45.21, 47.65, 51.58, 56.63, 60.14, 64.43, 69.55, 72.92, 76.67, 80.41, 82.9, 88.4]
-VTEMPO = {18: 1.08}   # 片尾那句稍微加快，才收得進片長
+VTEMPO = {18: 1.08}   # 跟光鏡頭起跑的風切
+for n in (4.5, 22.1, 34.6, 37.7, 43.9, 52.3, 64.3, 72.7): Pk('whoosh', n + .35, .2, rng.uniform(-.3, .3), .85)
+# 片尾那句稍微加快，才收得進片長
 vo = np.zeros((N, 2), np.float32); placed = []
 for (a, b), st in zip(VSEG, VSTART):
     seg_ = vsrc[max(0, int((a - .04) * SR)): int((b + .12) * SR)].copy(); fl = int(.03 * SR)

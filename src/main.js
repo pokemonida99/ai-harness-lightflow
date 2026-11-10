@@ -119,12 +119,15 @@ const bloom = new UnrealBloomPass(new THREE.Vector2(W, H), .55, .38, .9);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 const fin = new ShaderPass({
-  uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uCA: { value: 1 }, uFlash: { value: 0 }, uFlashC: { value: new THREE.Color(1, 1, 1) }, uFade: { value: 0 }, uRes: { value: new THREE.Vector2(W, H) }, uStreak: { value: 1 } },
+  uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uCA: { value: 1 }, uFlash: { value: 0 }, uFlashC: { value: new THREE.Color(1, 1, 1) }, uFade: { value: 0 }, uRes: { value: new THREE.Vector2(W, H) }, uStreak: { value: 1 }, uZoom: { value: 0 }, uGlitch: { value: 0 } },
   vertexShader: `varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime,uCA,uFlash,uFade,uStreak; uniform vec3 uFlashC; uniform vec2 uRes; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime,uCA,uFlash,uFade,uStreak,uZoom,uGlitch; uniform vec3 uFlashC; uniform vec2 uRes; varying vec2 vUv;
   float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
-  void main(){ vec2 c=vUv-.5; float r=length(c); vec2 off=c*uCA*r*.010;
-    vec3 col=vec3(texture2D(tDiffuse,vUv+off).r,texture2D(tDiffuse,vUv).g,texture2D(tDiffuse,vUv-off).b);
+  void main(){ vec2 uv=vUv;
+    float band=floor(uv.y*36.)+floor(uTime*24.); float gh=h(vec2(band,3.1)); uv.x+=(gh-.5)*.08*uGlitch*step(.62,gh);
+    vec2 c=uv-.5; float r=length(c); vec2 off=c*uCA*r*.010+vec2(.012*uGlitch,0.);
+    vec3 col=vec3(texture2D(tDiffuse,uv+off).r,texture2D(tDiffuse,uv).g,texture2D(tDiffuse,uv-off).b);
+    if(uZoom>.002){ vec3 zb=vec3(0.); for(int i=1;i<=12;i++){ float k=float(i)/12.; zb+=texture2D(tDiffuse,.5+c*(1.-uZoom*k*.35)).rgb; } col=mix(col,zb/12.*1.15,clamp(uZoom*2.2,0.,.85)); }
     vec3 st=vec3(0.); float px=3./uRes.x;
     for(int i=-14;i<=14;i++){ float o=float(i)*px*uStreak; vec3 s=texture2D(tDiffuse,vUv+vec2(o*1.6,0.)).rgb; st+=max(s-vec3(.78),0.)*exp(-abs(float(i))*.16); }
     col+=st*vec3(.35,.75,1.)*.05;
@@ -153,7 +156,10 @@ vec4 m=max(.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.);m=m*m;
 return 42.*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));}
 float fbm(vec3 p){float s=0.,a=.5;for(int i=0;i<4;i++){s+=a*snoise(p);p*=2.03;a*=.5;}return s;}
 `;
-const GRID = `float gridL(vec2 p,float s,float w){vec2 g=abs(fract(p/s-.5)-.5)*s;vec2 fw=fwidth(p)*w;vec2 l=1.-smoothstep(vec2(0.),fw,g);return max(l.x,l.y);}`;
+// 平方一律用 sq()：Metal 對 pow(負數, 2.) 會回傳 NaN，泛光會把它擴散成黑框
+const SQ_DEF = '#define sq(x) ((x)*(x))\n';
+THREE.Material.prototype.onBeforeCompile = function (sh) { sh.vertexShader = SQ_DEF + sh.vertexShader; sh.fragmentShader = SQ_DEF + sh.fragmentShader; };
+const GRID = `float gridL(vec2 p,float s,float w){vec2 g=abs(fract(p/s-.5)-.5)*s;vec2 fw=max(fwidth(p)*w,vec2(1e-4));vec2 l=1.-smoothstep(vec2(0.),fw,g);return max(l.x,l.y);}`;
 const U = { time: { value: 0 }, beat: { value: 0 }, lo: { value: 0 } };
 
 // ===== 天空：地平線光、遠山稜線、低雲 =====
@@ -188,11 +194,11 @@ const floor = new Reflector(new THREE.PlaneGeometry(700, 700), {
         r+=texture2DProj(tDiffuse,uv+vec4(0.,b*2.,0.,0.)).rgb*.15; r+=texture2DProj(tDiffuse,uv-vec4(0.,b*2.,0.,0.)).rgb*.15;
         float d=length(vW.xz-vec2(10.,0.)); float fade=exp(-d*.012);
         float g1=gridL(vW.xz,2.,1.1), g8=gridL(vW.xz,8.,1.4);
-        float sc=exp(-pow((vW.x-uScan)*.35,2.));
+        float sc=exp(-sq((vW.x-uScan)*.35));
         vec3 gc=vec3(.12,.75,1.)*(g1*.05+g8*.22)*(1.+uBeat*.9+sc*3.)*uGrid;
         vec3 pool=vec3(0.); for(int i=0;i<${POOLS};i++){ vec2 q=vW.xz-uPool[i].xy; float k=exp(-dot(q,q)/(uPool[i].z*uPool[i].z)); pool+=uPoolC[i]*k*uPool[i].w; }
         float rt=uTime-uRip.z; float rd=length(vW.xz-uRip.xy);
-        float rip=exp(-pow((rd-rt*12.)*.9,2.))*exp(-rt*.8)*step(0.,rt)*uRip.w;
+        float rip=exp(-sq((rd-rt*12.)*.9))*exp(-rt*.8)*step(0.,rt)*uRip.w;
         vec3 col=r*.55+gc*(1.+pool*2.)+pool*.05+vec3(.3,.9,1.4)*rip*(g1*1.4+.15);
         gl_FragColor=vec4(uBg+col*fade,1.);}`,
   },
@@ -243,7 +249,7 @@ function makePoints(n, body, o = {}) {
     ${o.path ? PATH_GLSL : ''}
     void main(){ vec3 pos=vec3(0.); float a=1.; float sz=1.; vec3 col=uColor; ${body}
       vec4 mv=modelViewMatrix*vec4(pos,1.); gl_Position=projectionMatrix*mv;
-      gl_PointSize=max(1.,uSize*sz*uScale/max(-mv.z,.1)); vA=a*uAmt; vC=col; }`;
+      gl_PointSize=clamp(uSize*sz*uScale/max(-mv.z,.1),1.,48.); vA=a*uAmt*smoothstep(.8,3.5,-mv.z); vC=col; }`;  // 太靠近鏡頭的粒子淡出，避免糊成大光斑
   const m = new THREE.ShaderMaterial({ uniforms: u, vertexShader: vs, fragmentShader: PT_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
   const p = new THREE.Points(g, m); p.frustumCulled = false; scene.add(p); pts.push(p); return p;
 }
@@ -254,7 +260,7 @@ const FLOW = `
   vec3 n1=normalize(cross(t,vec3(0.,1.,0.))+vec3(1e-4)); vec3 n2=cross(t,n1);
   float an=aSeed.z*6.283+uTime*(1.5+aSeed.w*2.5); float rr=uRad*(.15+.85*aSeed.w*aSeed.w);
   pos=p+(n1*cos(an)+n2*sin(an))*rr;
-  a=smoothstep(0.,.06,u)*smoothstep(1.,.94,u)*step(.0005,uHead-uTail)*(.6+.4*sin(uTime*9.+aSeed.x*50.));
+  a=smoothstep(0.,.06,u)*smoothstep(1.,.94,u)*step(.0005,uHead-uTail)*(.85+.15*sin(uTime*2.+aSeed.x*50.));
   sz=.5+aSeed.w*1.4+step(.93,aSeed.y)*1.4; col=uColor*(1.+step(.93,aSeed.y)*1.5);`;
 function makeFlow(cv, n, color, o = {}) { return makePoints(n, FLOW, Object.assign({ path: cv, color, size: .07, speed: .25, rad: .22 }, o)); }
 
@@ -265,8 +271,8 @@ const TRACK_FS = `uniform vec3 uColor; uniform float uI,uHead,uTail,uTime,uCore,
     float f=clamp(abs(dot(vN,vV)),0.,1.); float core=pow(f,uCore);
     float flow=1.-uFlow*.3+uFlow*.3*sin(s*uLen*1.3-uTime*12.);
     float dash=mix(1.,step(.45,fract(s*uLen*.7-uTime*1.4)),uDash);
-    float pulse=0.; for(int i=0;i<4;i++){pulse+=exp(-pow((s-uPulses[i])*uLen/1.1,2.));}
-    float tip=exp(-pow((s-uHead)*uLen/.8,2.))*step(uHead,.999);
+    float pulse=0.; for(int i=0;i<4;i++){pulse+=exp(-sq((s-uPulses[i])*uLen/1.1));}
+    float tip=exp(-sq((s-uHead)*uLen/.8))*step(uHead,.999);
     gl_FragColor=vec4(uColor*core*(flow*dash*uI+pulse*3.5+tip*3.*uI),1.);}`;
 function makeTrack(cv, r, color, o = {}) {
   const len = cv.getLength(), segs = Math.max(24, Math.min(600, Math.round(len * 8)));
@@ -297,7 +303,7 @@ function makeWall(cv, h, color) {
       void main(){ if(vUv.x>uHead) discard; float v=vUv.y;
         float k=exp(-v*18.)*2.2+pow(1.-v,3.)*.22+exp(-(1.-v)*40.)*.35;
         float streak=.75+.25*sin(vUv.x*uLen*3.-uTime*6.);
-        float tip=exp(-pow((vUv.x-uHead)*uLen/1.2,2.))*step(uHead,.999);
+        float tip=exp(-sq((vUv.x-uHead)*uLen/1.2))*step(uHead,.999);
         gl_FragColor=vec4(uColor*(k*streak*uI+tip*2.*(1.-v)*uI)*.5,1.);}`,
   });
   const mesh = new THREE.Mesh(g, m); scene.add(mesh);
@@ -309,9 +315,9 @@ const BILL_VS = `uniform float uS; varying vec2 vUv; void main(){vUv=uv; vec4 mv
 const BILL_FS = {
   glow: `uniform vec3 uColor; uniform float uI; varying vec2 vUv; void main(){float d=length(vUv-.5)*2.; float g=pow(max(1.-d,0.),2.8)*.5; gl_FragColor=vec4(uColor*g*uI,1.);}`,
   ring: `uniform vec3 uColor; uniform float uI,uProg; varying vec2 vUv;
-    void main(){float d=length(vUv-.5)*2.; float r=exp(-pow((d-uProg)/(.02+.05*uProg),2.)); gl_FragColor=vec4(uColor*r*uI*(1.-uProg),1.);}`,
+    void main(){float d=length(vUv-.5)*2.; float r=exp(-sq((d-uProg)/(.02+.05*uProg))); gl_FragColor=vec4(uColor*r*uI*(1.-uProg),1.);}`,
   star: `uniform vec3 uColor; uniform float uI; varying vec2 vUv; void main(){vec2 p=(vUv-.5)*2.; float d=length(p);
-    float g=pow(max(1.-d,0.),3.)*.8+exp(-abs(p.y)*60.)*pow(max(1.-abs(p.x),0.),2.)*1.2+exp(-abs(p.x)*60.)*pow(max(1.-abs(p.y),0.),2.)*.5; gl_FragColor=vec4(uColor*g*uI*.55,1.);}`,
+    float g=pow(max(1.-d,0.),3.)*.8+exp(-abs(p.y)*60.)*sq(max(1.-abs(p.x),0.))*1.2+exp(-abs(p.x)*60.)*sq(max(1.-abs(p.y),0.))*.5; gl_FragColor=vec4(uColor*g*uI*.55,1.);}`,
 };
 function makeBill(kind, color, s, pos) {
   const u = { uS: { value: s }, uColor: { value: color }, uI: { value: 0 }, uProg: { value: 0 } };
@@ -362,7 +368,7 @@ const rain = (() => {
         return uC+vec3(cos(an)*rr,y,sin(an)*rr); }
       void main(){ float u=fract(aSeed.x+uTime*(.22+.25*aSeed.w)); float uu=u-aEnd*(.02+.05*aSeed.w);
         vec3 p=at(clamp(uu,0.,1.)); gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);
-        vA=(1.-aEnd)*uAmt*smoothstep(0.,.05,u)*(.5+.5*aSeed.w);
+        vA=(1.-aEnd)*uAmt*smoothstep(0.,.05,u)*(.5+.5*aSeed.w)*smoothstep(1.,5.,-(modelViewMatrix*vec4(p,1.)).z);
         vC=aSeed.y<.33?vec3(.7,2.2,2.6):aSeed.y<.66?vec3(2.4,1.6,.7):vec3(2.,2.3,2.5); }`,
     fragmentShader: `varying float vA; varying vec3 vC; void main(){gl_FragColor=vec4(vC*vA,1.);}`,
   });
@@ -404,7 +410,7 @@ const holoMat = new THREE.ShaderMaterial({
   fragmentShader: `uniform float uTime,uA,uScan,uFlash; uniform vec3 uFC; varying vec3 vW; varying vec2 vUv; ${GRID}
     void main(){ vec2 e=min(vUv,1.-vUv); float edge=exp(-min(e.x,e.y)*40.);
       float g=gridL(vW.xy+vW.zz,2.,1.)*.25+gridL(vW.zy+vW.xx,2.,1.)*.25;
-      float sc=exp(-pow((vW.y-mod(uTime*3.,30.)+8.)*1.2,2.))*.6;
+      float sc=exp(-sq((vW.y-mod(uTime*3.,30.)+8.)*1.2))*.6;
       vec3 c=vec3(.15,.8,1.)*(g*.06+edge*.12+sc*.08)*uA+uFC*uFlash*.18*(.3+edge);
       gl_FragColor=vec4(c,1.);}`,
 });
@@ -435,16 +441,25 @@ const core = (() => {
   }
   const inner = makeBill('glow', HDR(CY, 1.6), 9, P.H);
   const rings = [0, 1].map(i => { const m = new THREE.Mesh(new THREE.TorusGeometry(3.4 + i * .6, .02, 6, 160), new THREE.MeshBasicMaterial({ color: HDR(CY, 2.4), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })); m.position.copy(P.H); scene.add(m); return m; });
-  return { grp, shards, chrome, seamMat, inner, rings };
+  shards.slice().sort((a, b) => a.h - b.h).forEach((sh, k) => sh.ord = k / (shards.length - 1));
+  // 高速移動時的光痕（每片一條，長度跟速度成正比）
+  const tg = new THREE.BufferGeometry(); tg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(shards.length * 6), 3));
+  const trails = new THREE.LineSegments(tg, new THREE.LineBasicMaterial({ color: HDR(CY, 2.4), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  trails.frustumCulled = false; scene.add(trails);
+  return { grp, shards, chrome, seamMat, inner, rings, trails };
 })();
+// 合體瞬間的塵爆
+const dustBurst = makePoints(600, `vec3 dir=normalize(vec3(aSeed.x-.5,(aSeed.y-.5)*.7,aSeed.z-.5)+1e-3); float u=uProg;
+  pos=uA+dir*(1.-exp(-u*5.))*(2.5+aSeed.w*7.)+vec3(0.,-.5*u*u,0.); a=step(0.,u)*exp(-u*1.6)*(.5+.5*aSeed.w); sz=.4+aSeed.w*1.3; col=mix(uColor,vec3(2.4,2.6,2.8),aSeed.y*.5);`,
+  { A: P.H, size: .06, color: HDR(CY, 2.2), salt: 41 });
 const labH = label('<small>HYPOTHESIS</small>假設 <b id="hn">H(1)</b>', 'big', P.H.clone().add(V(0, -3.8, 0)));
 
 // ===== 03 金絲雀測試：探測光球＋市場切片 =====
 const cvCanary = curve([P.H.clone().add(V(.5, 1.6, 0)), V(-11, 10.2, -2.2), V(-7.5, 11.4, -4.6), P.PROBE]);
 const canaryTrack = makeTrack(cvCanary, .03, HDR(GOLD, 2.2), { flow: .6 });
 const canaryTrail = makeFlow(cvCanary, 220, HDR(GOLD, 2.6), { speed: .5, rad: .12, salt: 5, size: .06 });
-const probe = new THREE.Mesh(new THREE.SphereGeometry(.26, 24, 16), new THREE.MeshBasicMaterial({ color: HDR(GOLD, 3) })); scene.add(probe);
-const probeGlow = makeBill('star', HDR(GOLD, 1.2), 2.6);
+const probe = new THREE.Mesh(new THREE.SphereGeometry(.2, 24, 16), new THREE.MeshBasicMaterial({ color: HDR(GOLD, 1.5) })); scene.add(probe);
+const probeGlow = makeBill('star', HDR(GOLD, .9), 1.4);
 const market = (() => {
   const grp = new THREE.Group(); grp.position.copy(P.MKT); grp.rotation.y = .32; scene.add(grp);
   const u = { uTime: U.time, uA: { value: 0 }, uScan: { value: -1 }, uOk: { value: 0 }, uBars: { value: 0 }, uFail: { value: 0 } };
@@ -457,7 +472,7 @@ const market = (() => {
         float g=gridL(p,.7,1.)*.18;
         float bi=floor((vUv.x-.08)/.84*12.); float inb=step(.08,vUv.x)*step(vUv.x,.92)*step(.25,fract((vUv.x-.08)/.84*12.));
         float bh=(.25+.6*hs(bi+3.))*uBars; float bar=inb*step(.1,vUv.y)*step(vUv.y,.1+bh*.75);
-        float sc=exp(-pow((vUv.y-uScan)*40.,2.))*step(0.,uScan);
+        float sc=exp(-sq((vUv.y-uScan)*40.))*step(0.,uScan);
         vec3 base=vec3(.2,.85,1.); vec3 ok=vec3(.3,1.6,.9); vec3 bad=vec3(1.6,.2,.3);
         vec3 c=mix(base,ok,uOk); c=mix(c,bad,uFail);
         vec3 col=c*(g*.4+frame*.9+bar*.55)+vec3(2.,1.6,.9)*sc*.9;
@@ -471,7 +486,7 @@ const scanCone = (() => {
   const u = { uI: { value: 0 }, uTime: U.time };
   const m = new THREE.Mesh(g, new THREE.ShaderMaterial({ uniforms: u, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
     vertexShader: `varying vec2 vUv; void main(){vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-    fragmentShader: `uniform float uI,uTime; varying vec2 vUv; void main(){ float k=pow(1.-vUv.y,.6)*.4+exp(-pow(fract(vUv.x*6.-uTime*.6)-.5,2.)*80.)*.4; gl_FragColor=vec4(vec3(1.6,1.2,.6)*k*uI*(1.-vUv.y*.5)*.3,1.);}` }));
+    fragmentShader: `uniform float uI,uTime; varying vec2 vUv; void main(){ float k=pow(1.-vUv.y,.6)*.4+exp(-sq(fract(vUv.x*6.-uTime*.6)-.5)*80.)*.4; gl_FragColor=vec4(vec3(1.6,1.2,.6)*k*uI*(1.-vUv.y*.5)*.3,1.);}` }));
   m.position.copy(P.PROBE); m.lookAt(P.MKT); m.scale.set(1, 1, P.PROBE.distanceTo(P.MKT)); scene.add(m);
   return { m, u };
 })();
@@ -499,7 +514,7 @@ function makeMeter(pos, color) {
     vertexShader: `varying vec3 vP; void main(){vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
     fragmentShader: `uniform float uFill,uA,uTime,uTarget; uniform vec3 uColor; varying vec3 vP;
       void main(){ vec3 q=abs(vec3(vP.x/.65,(vP.y-3.5)/3.5,vP.z/.65)); float e2=(step(.94,q.x)+step(.94,q.y)+step(.94,q.z));
-        float edge=step(1.5,e2); float y=vP.y/7.; float fill=step(y,uFill); float top=exp(-pow((y-uFill)*7.*6.,2.));
+        float edge=step(1.5,e2); float y=vP.y/7.; float fill=step(y,uFill); float top=exp(-sq((y-uFill)*7.*6.));
         float lines=step(.92,fract(y*20.))*.2;
         vec3 c=uColor*(edge*.9+fill*(.16+lines+.12*sin(y*30.-uTime*4.))+top*2.5);
         gl_FragColor=vec4(c*uA,1.);}` }));
@@ -534,6 +549,8 @@ const gate = (() => {
   const shock = makeBill('ring', HDR(RED, 2), 16, P.GATE);
   return { grp, halves, glow, shock };
 })();
+const gateFloorRing = makeFloorRing(HDR(CY, 2.5), V(P.GATE.x, .05, 0), 96);  // 重拍時從閘門向外擴散的地面衝擊波
+const coreFloorRing = makeFloorRing(HDR(CY, 2.5), V(P.H.x, .05, 0), 50);
 const labGate = label('預測目標達成？', 'big', P.GATE.clone().add(V(0, -4.9, 0)));
 const labNo = label('否 → 迭代', 'tag red', P.GATE.clone().add(V(3.4, 4.4, 0)));
 const labYes = label('是・預測達標', 'tag gold', P.GATE.clone().add(V(4.4, -1.6, 1)));
@@ -551,7 +568,7 @@ const loopPts = makePoints(900, `
   float cx=cos(.28),sx=sin(.28),cr=cos(.12),sr=sin(.12);
   lp=vec3(lp.x,lp.y*cr-lp.z*sr,lp.y*sr+lp.z*cr); lp=vec3(lp.x*cx+lp.z*sx,lp.y,-lp.x*sx+lp.z*cx);
   pos=uA+lp; a=(1.-lag)*(.5+.5*aSeed.z); sz=(1.-lag*.7)*(.6+aSeed.z); col=mix(uColor,vec3(2.6,2.2,1.6),step(.9,aSeed.z));`, { A: P.LOOP, size: .09, color: HDR(OR, 2.4), salt: 17 });
-const loopGlow = makeBill('glow', HDR(OR, 1.2), 14, P.LOOP);
+const loopGlow = makeBill('glow', HDR(OR, .6), 10, P.LOOP);
 const labLoop = label('<small>02 · ITERATION</small>Loop 迭代', 'big orange', P.LOOP.clone().add(V(0, 5, 0)));
 const cvNo = curve([P.GATE.clone().add(V(0, 3.6, 0)), V(16.4, 10, -2.6), V(11, 13.6, -6.8), V(5, 12.4, -7.2), P.LOOP.clone().add(V(3.5, .4, -.9))]);
 const cvBack = curve([P.LOOP.clone().add(V(-3.5, -.4, .9)), V(-4.2, 13.6, -5.4), V(-9.6, 11.4, -1.8), P.H.clone().add(V(0, 2.4, 0))]);
@@ -564,8 +581,8 @@ const cvYes = curve([P.GATE.clone().add(V(0, -.6, 0)), V(17.6, 4.4, 0), P.EXIT, 
 const yesTrack = makeTrack(cvYes, .08, HDR(GOLD, 2.6));
 const yesFlow = makeFlow(cvYes, 400, HDR(GOLD, 1.8), { speed: .3, rad: .2, salt: 29, size: .055 });
 const exitRing = makeBill('ring', HDR(GOLD, 3), 18, P.EXIT);
-const pilot = new THREE.Mesh(new THREE.SphereGeometry(.22, 20, 14), new THREE.MeshBasicMaterial({ color: HDR(0xfff2d8, 4) })); scene.add(pilot);
-const pilotGlow = makeBill('star', HDR(GOLD, 1.4), 3.2);
+const pilot = new THREE.Mesh(new THREE.SphereGeometry(.18, 20, 14), new THREE.MeshBasicMaterial({ color: HDR(0xfff2d8, 1.8) })); scene.add(pilot);
+const pilotGlow = makeBill('star', HDR(GOLD, 1), 1.6);
 
 // ===== 真實用戶：白金城市點陣 =====
 const city = (() => {
@@ -612,11 +629,11 @@ const curves = (() => {
       void main(){ vec2 p=vUv; vec2 e=min(p,1.-p); float frame=exp(-min(e.x*14.,e.y*5.6)*16.)*.6;
         float g=gridL(p*vec2(14.,5.6),.8,1.)*.12; float on=step(p.x,uDraw);
         float yp=f(p.x); float ya=yp+(1.-uConv)*(.16*sin(p.x*13.+1.)+.08*sin(p.x*31.))*smoothstep(0.,.15,p.x);
-        float lp=exp(-pow((p.y-yp)*5.6*14.,2.))*on*step(.5,fract(p.x*30.)); float la=exp(-pow((p.y-ya)*5.6*12.,2.))*on;
+        float lp=exp(-sq((p.y-yp)*5.6*14.))*on*step(.5,fract(p.x*30.)); float la=exp(-sq((p.y-ya)*5.6*12.))*on;
         vec3 col=vec3(.2,.85,1.)*(g+frame)+vec3(.4,1.6,2.)*lp*1.4+vec3(2.2,1.5,.6)*la*1.6;
         gl_FragColor=vec4(col*uA,1.);}` }));
   m.position.set(37, 10.2, -7); m.rotation.y = -.18; scene.add(m);
-  return u;
+  u.mesh = m; return u;
 })();
 const labCurves = label('<span class="cy">— — 預測</span>　<span class="gd">—— 實測</span>', 'sm', V(37, 13.6, -7));
 
@@ -672,34 +689,66 @@ const HITS = [['in', V(-38, 8, 0), 7, 0], ['h', P.H, 3, 12], ['can', P.MKT, 4.5,
   const m = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 8), new THREE.MeshBasicMaterial({ visible: false })); m.position.copy(p); m.userData = { k, n }; scene.add(m); return m;
 });
 
-// ===== 導演鏡頭（故事時間；每個 shot 內 Catmull-Rom，shot 之間硬切）=====
+// ===== 導演鏡頭（故事時間）=====
+// 三種鏡頭：keys＝關鍵格（可指定緩動）；follow＝騎在光的後方跟著走；orbit＝繞著物體轉。
+// 質量感：大位移「加速短、煞停長」，撞擊只交給 recoil 做一次後座。
+const brake = x => 1 - Math.pow(1 - clamp(x), 4);          // 快出、長煞停
+const heavy = x => { x = clamp(x); return x < .35 ? Math.pow(x / .35, 2) * .5 : .5 + .5 * brake((x - .35) / .65); };
+const EASE = { io: eio, brake, heavy, lin: x => clamp(x), in: x => Math.pow(clamp(x), 3) };
+const F = (cv, prog, o = {}) => ({ type: 'follow', cv, prog, back: o.back ?? 2.5, up: o.up ?? .7, side: o.side ?? 0, ahead: o.ahead ?? 6, fov: o.fov ?? 54 });
+const K = (keys, ease = 'heavy') => ({ type: 'keys', keys, ease });
 const SHOTS = [
-  [[0, -66, 2.6, 26, -38, 9, 0, 40], [3.5, -56, 3.4, 19, -38, 10, 0, 42], [7, -48, 5.5, 15, -34, 7, 0, 46]],
-  [[7, -44, 2.2, 9, -24, 2.5, 0, 50], [9.4, -36, 7, 28, -8, 6, 0, 46], [12, -30, 13, 36, 0, 7, 0, 44]],
-  [[12, -20, 6.6, 8.5, -13, 6, 0, 40], [15.5, -8.2, 8.6, 8.6, -13, 6.2, 0, 40]],
-  [[15.5, -19, 13, 11, -8, 9, -4, 46], [19, -10, 14.5, 6, -4, 10.6, -8, 42], [21.6, -.2, 12.6, 3.2, -3, 10.6, -9, 42], [24, -3, 13.4, 8, -7, 7, -4, 46]],
-  [[24, -13, 2.6, 9.5, -5, 1, 0, 46], [27, -6, 2, .2, 4, 1.1, 0, 52], [30, 3, 2.3, 0, 11, 1.6, 0, 52]],
-  [[30, 0, 16, 23, 5, 2.5, 0, 44], [36, 4, 21, 27, 8, 3.5, 0, 42]],
-  [[36, 24, 6.5, 14, 15, 5, 0, 42], [39, 21, 5.5, 9.5, 15, 5, 0, 48]],
-  [[39, 15, 14.5, 12, 6, 11.4, -5, 46], [44, 4.5, 14.5, 8.5, 1.5, 11.4, -8, 50]],
-  [[44, -2, 12.5, 10, -10, 9, -2, 44], [48, -16.5, 8.4, 9, -13, 6, 0, 40], [52, -20.5, 6.4, 6.4, -13, 6, 0, 38]],
-  [[52, -26, 13, 23, -4, 5, -2, 44], [58, -10, 17, 27, 2, 4, 0, 44]],
-  [[58, 19, 4.2, 9.5, 9, 3.6, 0, 42], [61.5, 16, 6.4, 12.5, 12, 4.5, 0, 44], [64, 23, 7.4, 13.5, 15, 4.8, 0, 46]],
-  [[64, 11, 7.4, 7.5, 20, 3.5, 0, 56], [66, 22, 4.6, 6.4, 31, 1, 0, 58], [68, 27, 6.5, 12, 35, 1, 0, 50]],
-  [[68, 23, 10.5, 23, 35, 1.5, 0, 44], [73, 30, 12.5, 25, 37, 4, -3, 44]],
-  [[73, 41, 2.8, 9, 38, 9, -4, 58], [76, 24, 31, 48, 4, 14, -6, 50], [80, 2, 35, 84, 6, 10, -4, 44]],
-  [[80, 40, 4.5, 30, 60, 11, 0, 50], [84, 34, 7.5, 42, 60, 16, 0, 52]],
-  [[84, 8, 27, 98, 11, 8, 0, 42], [90, 8, 31, 114, 11, 9, 0, 40]],
+  [0, K([[0, -54, 24, 22, -38, 9, 0, 40], [6.1, -42, 5, 12, -33, 1, 1.5, 48]], 'io')],
+  [6.1, F(cvRiver, N => eio(seg(N, 4.4, 8.4)), { back: 3.5, up: 2.2, side: 1.6, fov: 58 })],  // 光頭已離開漏斗才開始跟
+  [7.1, K([[7.1, -21, 3.2, 5.5, -13, 3.5, 0, 52], [11.4, -27, 11, 19, -3, 7, 0, 46]], 'brake')],
+  [11.4, K([[11.4, -12.2, 6.6, 9.6, -13, 6, 0, 46], [12.3, -12.6, 6.9, 10.0, -13, 6, 0, 46], [13.2, -12.9, 6.7, 9.2, -13, 6, 0, 46]], 'io')],
+  [13.2, K([[13.2, -12.9, 6.7, 9.2, -13, 6, 0, 46], [15.6, -15.5, 7.4, 7.6, -13, 6.4, 0, 46]], 'io')],
+  [15.6, F(cvCanary, N => eio(seg(N, 15.6, 17.6)), { back: 2, up: .5, side: .3, fov: 56 })],
+  [17.65, K([[17.65, -6.4, 12.6, -2.4, -2, 11, -9.5, 50], [19.9, -5.4, 12.2, -1.6, -2, 10.8, -9.5, 48]], 'brake')],
+  [19.9, K([[19.9, -18, 3.2, 6.5, -12, 4.5, 0, 46], [23.1, -16, 2.4, 5.2, -9, 1.5, 0, 48]], 'io')],
+  [23.1, F(cvToSplit, N => eio(seg(N, 22, 24.3)), { back: 2.5, up: 1.7, side: 1.2, fov: 58 })],  // 光頭已離開核心才開始跟
+  [24.3, K([[24.3, -4, 3, 9, 3, 1, 0, 50], [29.5, 3, 4.6, 10.4, 6.5, 2.4, 0, 46], [34.5, 8.4, 6, 10.4, 8.6, 4.2, 0, 44]], 'io')],
+  [34.5, F(cvA, N => AB_END + (1 - AB_END) * eio(seg(N, 34.5, 36)), { back: 3, up: .8, side: -.4, fov: 58 })],
+  [36, K([[36, 10.3, 5.6, 1.9, 15, 5, 0, 50], [37.6, 10.0, 5.5, 2.1, 15, 5, 0, 50]], 'brake')],
+  [37.6, F(cvNo, N => eio(seg(N, 37.6, 39.4)), { back: 2, up: .6, side: .3, fov: 58 })],
+  [39.4, { type: 'orbit', c: P.LOOP, r: 6.5, y: 1.2, a0: .9, a1: 2.6, n0: 39.4, n1: 43.8, fov: 52, ease: 'io' }],
+  [43.8, F(cvBack, N => eio(seg(N, 43.8, 46.4)), { back: 2.5, up: 1, side: -.6, fov: 56 })],
+  [46.4, K([[46.4, -12.6, 6.6, 4.2, -13, 6, 0, 48], [46.55, -12.6, 6.6, 4.2, -13, 6, 0, 48], [47.6, -11.6, 7.8, 9.4, -13, 6, 0, 50]], 'brake')],
+  [47.6, K([[47.6, -11.6, 7.8, 9.4, -13, 6, 0, 50], [48.6, -11.3, 7.8, 9.6, -13, 6, 0, 50]], 'lin')],
+  [48.6, K([[48.6, -11.3, 7.8, 9.6, -13, 6, 0, 50], [50.2, -12.4, 6.6, 4.4, -13, 6, 0, 48]], 'io')],
+  [50.2, K([[50.2, -12.4, 6.6, 4.4, -13, 6, 0, 48], [52.2, -14, 7.2, 5.4, -13, 6.4, 0, 48]], 'io')],
+  [52.2, F(cvCanary, N => eio(seg(N, 52.2, 53.3)), { back: 2, up: .5, side: -.3, fov: 56 })],
+  [53.35, K([[53.35, -6.4, 12.6, -2.4, -2, 11, -9.5, 50], [55, -6, 12.4, -2, -2, 10.8, -9.5, 50]], 'brake')],
+  [55, K([[55, 0, 18, 21, 6, 3, 0, 46], [63.6, 11, 9, 10, 15, 5, 0, 46], [64.2, 11.2, 8.9, 9.9, 15, 5, 0, 46]], 'heavy')],
+  [64.2, F(cvYes, N => .22 + .78 * eio(seg(N, 64.2, 66.2)), { back: 2, up: 1.1, side: .8, ahead: 5, fov: 60 })],
+  [66.2, K([[66.2, 28, 2, 6.5, 33, 1, 0, 50], [72.6, 36, 10, 13, 37, 5, -4, 46]], 'brake')],
+  [72.6, F(cvFeed, N => eio(seg(N, 72.6, 76.2)), { back: 4, up: 1, side: 0, ahead: 10, fov: 58 })],
+  [76.25, K([[76.25, -41, 15.6, 3.2, -10, 10, 0, 50], [78, -42, 16.5, 5.5, 0, 9, 0, 50]], 'brake')],
+  [78, K([[78, 70, 5, 12, 60, 7, 0, 50], [80, 69, 4.4, 12.4, 60, 6, 0, 50], [84.6, 68, 15, 16, 60, 15, 0, 52]], 'heavy')],
+  [84.6, K([[84.6, 12, 38, 68, 10, 8, 0, 44], [90, 12, 40, 74, 10, 8.5, 0, 42]], 'io')],
 ];
 function cr(p0, p1, p2, p3, u) { const u2 = u * u, u3 = u2 * u; return .5 * (2 * p1 + (-p0 + p2) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u2 + (-p0 + 3 * p1 - 3 * p2 + p3) * u3); }
+const _tA = V(), _tB = V();
 function storyCam(N) {
-  let shot = SHOTS[0]; for (const s of SHOTS) if (N >= s[0][0]) shot = s;
-  const k = shot; let i = 0; while (i < k.length - 2 && N > k[i + 1][0]) i++;
-  const a = k[Math.max(0, i - 1)], b = k[i], c = k[Math.min(k.length - 1, i + 1)], d = k[Math.min(k.length - 1, i + 2)];
-  const u = k.length === 1 ? 0 : eio(seg(N, b[0], c[0])) * .5 + seg(N, b[0], c[0]) * .5;
-  const v = j => cr(a[j], b[j], c[j], d[j], u);
-  return { p: V(v(1), v(2), v(3)), t: V(v(4), v(5), v(6)), fov: v(7) };
+  let sh = SHOTS[0][1]; for (const [n0, s] of SHOTS) if (N >= n0) sh = s;
+  if (sh.type === 'keys') {
+    const k = sh.keys; let i = 0; while (i < k.length - 2 && N > k[i + 1][0]) i++;
+    const a = k[Math.max(0, i - 1)], b = k[i], c = k[Math.min(k.length - 1, i + 1)], d = k[Math.min(k.length - 1, i + 2)];
+    const u = k.length === 1 ? 0 : EASE[sh.ease](seg(N, b[0], c[0]));
+    const v = j => cr(a[j], b[j], c[j], d[j], u);
+    return { p: V(v(1), v(2), v(3)), t: V(v(4), v(5), v(6)), fov: v(7) };
+  }
+  if (sh.type === 'orbit') {
+    const u = EASE[sh.ease](seg(N, sh.n0, sh.n1)), an = lerp(sh.a0, sh.a1, u);
+    return { p: sh.c.clone().add(V(Math.cos(an) * sh.r, sh.y + Math.sin(u * Math.PI) * .8, Math.sin(an) * sh.r)), t: sh.c.clone(), fov: sh.fov };
+  }
+  // follow：相機在光頭後方 back 公尺、上方 up 公尺、側移 side，看向前方 ahead 公尺
+  const L = sh.cv.getLength(), u = clamp(sh.prog(N));
+  const pc = sh.cv.getPointAt(clamp(u - sh.back / L)), pa = sh.cv.getPointAt(clamp(u + sh.ahead / L));
+  const tan = sh.cv.getTangentAt(clamp(u - sh.back / L)); const sideV = _tA.crossVectors(tan, Yup).normalize();
+  return { p: pc.add(V(0, sh.up, 0)).add(sideV.multiplyScalar(sh.side)), t: pa, fov: sh.fov };
 }
+const Yup = V(0, 1, 0);
 
 // ===== UI =====
 const $ = id => document.getElementById(id);
@@ -707,20 +756,28 @@ const UI = { stepNo: $('stepNo'), stepName: $('stepName'), bar: $('bar'), tcv: $
 const S = { T: 0, A: 0, playing: false, cam: 'story', blend: 1, from: null, hover: null, sound: true, rip: -99, mouse: V(0, -99, 0), started: REC, pkt: -99 };
 const camCur = { p: V(), t: V(), fov: 44 };
 let capIdx = -2;
-const envAt = t => { const E = window.AUDIO_ENV; if (!E) return [0, 0, 0]; const i = Math.max(0, Math.floor(t * E.fps)); return [E.rms[i] || 0, E.lo[i] || 0, E.on[i] || 0]; };
+// 低頻包絡取約 0.4 秒平均：畫面隨音樂「呼吸」，不跟每一下大鼓閃
+const envAt = t => { const E = window.AUDIO_ENV; if (!E) return [0, 0, 0]; const i = Math.max(0, Math.floor(t * E.fps)); let l = 0, n = 0; for (let k = Math.max(0, i - 10); k <= i + 2; k++) { l += E.lo[k] || 0; n++; } return [E.rms[i] || 0, l / n, E.on[i] || 0]; };
 const C = c => new THREE.Color(c);
 
 function update(T, A, dt) {
   const N = toN(T);
   const [rms, lo, on] = envAt(T);
   const beat = lo;
-  U.time.value = A; U.beat.value = beat * .6; U.lo.value = lo;
+  // 兩個 drop 段落裡，大鼓帶動鏡頭、光軌、網格一起脈動
+  const kick = on, dropF = clamp(win(N, 36, 52, .3) + win(N, 64, 80, .3)), pk = 0;
+  U.time.value = A; U.beat.value = beat * .6 + pk * .9; U.lo.value = lo;
 
   // 關鍵拍點
   const NO = 37.0, YES = 64.0, IGN = 80.0;
-  const flash = .3 * decay(N, 36, 6) + .38 * decay(N, NO, 5) + .45 * decay(N, YES, 4) + .25 * decay(N, 76.2, 5) + .55 * decay(N, IGN, 3.5) + .12 * decay(N, 19.8, 6) + .12 * decay(N, 54.8, 6);
+  const flash = .3 * decay(N, 36, 6) + .38 * decay(N, NO, 5) + .28 * decay(N, YES, 4) + .25 * decay(N, 76.2, 5) + .55 * decay(N, IGN, 3.5) + .12 * decay(N, 19.8, 6) + .12 * decay(N, 54.8, 6);
   fin.uniforms.uFlashC.value.copy(N >= YES ? C(0xfff0d8) : N >= NO - .1 && N < 46 ? C(0xff6070) : C(0xd8f6ff));
-  const shake = .32 * decay(N, NO, 3.5) + .3 * decay(N, YES, 3) + .35 * decay(N, IGN, 2.5) + .2 * decay(N, 36, 4) + on * .02;
+  // 質量感：撞擊只給一次低頻後座力（往後退再回位），不做高頻抖動與閃光
+  const bump = (t, k) => t < 0 ? 0 : t * k * Math.exp(1 - t * k);
+  const IMP = [[13.2, .7, 6], [36, .9, 5], [NO, 1.4, 5], [50.2, 1.2, 5.5], [YES, 1.6, 4.5], [IGN, 2.2, 3.5], [81.5, .7, 7]];
+  const recoil = IMP.reduce((m, [t0, a, k]) => m + a * bump(N - t0, k), 0);
+  const shake = 0, punch = 0;
+  fin.uniforms.uGlitch.value = 0;
   floorU.uGrid.value = .25 + .75 * sstep(seg(N, .2, 3));
   floorU.uScan.value = N > 64 && N < 70 ? lerp(18, 60, seg(N, 64, 69)) : N > 7 && N < 11 ? lerp(-40, 25, seg(N, 7, 11)) : -999;
 
@@ -737,7 +794,7 @@ function update(T, A, dt) {
   riverFlow.material.uniforms.uHead.value = eio(seg(N, 4.4, 8.4)); riverFlow.material.uniforms.uAmt.value = seg(N, 4.4, 5) * 1.0;
 
   // 結界
-  cubeEdges.forEach((e, i) => { const t0 = 7 + i * .25; e.set(eio(seg(N, t0, t0 + .7)), (1 + beat * .3) * (1 + 1.5 * decay(N, 65.2, 3) + .8 * decay(N, 78, 3)) * (N >= YES ? lerp(1, .6, seg(N, 66, 70)) : 1)); });
+  cubeEdges.forEach((e, i) => { const t0 = 7 + i * .25; e.set(eio(seg(N, t0, t0 + .7)), (1 + beat * .3 + pk * 1.1) * (1 + 1.5 * decay(N, 65.2, 3) + .8 * decay(N, 78, 3)) * (N >= YES ? lerp(1, .6, seg(N, 66, 70)) : 1)); });
   cornerGlows.forEach((g, i) => g.set(seg(N, 7.6 + i * .3, 8.4 + i * .3) * (.5 + beat * .4 + 1.5 * decay(N, 65.2, 3))));
   holoMat.uniforms.uA.value = sstep(seg(N, 9.5, 11.5)) * (1 + beat * .5);
   holoMat.uniforms.uFlash.value = decay(N, NO, 4) + decay(N, YES, 3);
@@ -745,24 +802,50 @@ function update(T, A, dt) {
   setO(labHarness, win(N, 9.6, 14, .5) + (N > 84 ? seg(N, 84.5, 85.5) * .9 : 0));
 
   // 假設核心
-  const asm = eout(seg(N, 11.4, 13.2));
-  const exp1 = eio(seg(N, 46.4, 47.6)) * (1 - eio(seg(N, 48.6, 50.2)));
+  // 碎片：飛來懸停 → 逐片加速撞回（四次方緩入）→ 卡入時小幅回彈；散開時指數爆出（唰）、零重力漂浮
+  const B1 = 13.2, B2 = 50.2, EX = 46.4;
+  const asm = N < 11.4 ? 0 : 1;
   const second = N >= 49.4;
-  core.shards.forEach((s, i) => {
-    const out = (1 - asm) * (9 + s.h * 6) + exp1 * (2.2 + s.h * 2.2);
-    s.pivot.position.copy(s.cen).multiplyScalar(1 + out / 2.2 * .9);
-    s.pivot.quaternion.setFromAxisAngle(s.ax, (1 - asm) * 4 * (s.h + .5) + exp1 * 2.4 * (s.h - .5));
-    s.pivot.visible = asm > .01;
+  const snapK = t => t < 0 ? 0 : -.32 * Math.exp(-t * 13) * Math.sin(t * 46);
+  const shardR = (sh, n) => {
+    const far = (7 + sh.h * 5);
+    if (n < EX) {
+      const land = 11.85 + sh.ord * 1.3, u = seg(n, land - .5, land);
+      const hang = far + 22 * (1 - eout(seg(n, 11.4, 11.85)));
+      return n < land ? lerp(hang, 0, Math.pow(u, 4)) : snapK(n - land);
+    }
+    const land = 48.85 + sh.ord * 1.3, u = seg(n, land - .45, land);
+    const blast = (5 + sh.h * 5) * (1 - Math.exp(-(n - EX) * 9)) + Math.max(0, Math.min(n, land - .45) - EX) * .35;
+    return n < land ? lerp(blast, 0, Math.pow(u, 4)) : snapK(n - land);
+  };
+  const shardSpin = (sh, n) => {
+    if (n < EX) { const land = 11.85 + sh.ord * 1.3; return n < land ? (1 - Math.pow(seg(n, land - .5, land), 2)) * (3 + sh.h * 4) + (land - n) * .4 : 0; }
+    const land = 48.85 + sh.ord * 1.3; return n < land ? (1 - Math.pow(seg(n, land - .45, land), 2)) * ((sh.h - .5) * 9 * (1 - Math.exp(-(n - EX) * 4)) + (n - EX) * .5 * (sh.h - .5)) : 0;
+  };
+  const tp = core.trails.geometry.attributes.position.array, prev = V(), cur = V();
+  core.shards.forEach((sh, i) => {
+    const r = shardR(sh, N), r0 = shardR(sh, N - .05);
+    sh.pivot.position.copy(sh.cen).multiplyScalar(1 + r / 2.2 * .9);
+    sh.pivot.quaternion.setFromAxisAngle(sh.ax, shardSpin(sh, N));
+    sh.pivot.visible = asm > 0;
+    cur.copy(sh.pivot.position).applyMatrix4(core.grp.matrixWorld); prev.copy(sh.cen).multiplyScalar(1 + r0 / 2.2 * .9).applyMatrix4(core.grp.matrixWorld);
+    const tail = cur.clone().lerp(prev, 2.2);
+    tp.set([cur.x, cur.y, cur.z, tail.x, tail.y, tail.z], i * 6);
   });
+  core.trails.geometry.attributes.position.needsUpdate = true; core.trails.visible = asm > 0 && ((N > 11.4 && N < B1 + .1) || (N > EX && N < B2 + .1));
+  const boom = t => t < 0 ? 0 : -.13 * Math.exp(-t * 6) * Math.cos(t * 2 * Math.PI * 2.2);
+  const bt = N >= B2 ? N - B2 : N - B1;
+  dustBurst.material.uniforms.uAmt.value = (N > B1 && N < B1 + 3) || (N > B2 && N < B2 + 3) ? 1 : 0; dustBurst.material.uniforms.uProg.value = Math.max(0, bt);
+  const exp1 = win(N, EX, B2, .3);
   core.grp.rotation.set(A * .21, A * .34 + (second ? .6 : 0), 0);
-  core.grp.scale.setScalar(second ? 1 + .12 * eout(seg(N, 49.4, 50.4)) : 1);
+  core.grp.scale.setScalar(((N >= B2 ? 1.12 : 1) + boom(N - B1) * (N < B2 ? 1 : 0) + boom(N - B2)));
   const coreC = second ? C(0x9ff4ff) : C(CY);
-  core.seamMat.color.copy(coreC).multiplyScalar(2.2 + 2.5 * decay(N, 13.2, 3) + 3 * decay(N, 50.2, 3) + beat * 1.5);
+  core.seamMat.color.copy(coreC).multiplyScalar(2.2 + 1.6 * decay(N, B1, 2.5) + 2 * decay(N, B2, 2.5) + beat * .5);
   core.chrome.emissiveIntensity = .02 + .25 * decay(N, 50.2, 2);
-  core.inner.set(asm * (.55 + beat * .5) + 1.4 * decay(N, 13.2, 3) + 1.6 * decay(N, 50.2, 2.5) + exp1 * 1.2);
+  core.inner.set(asm * (.55 + beat * .2) + .9 * decay(N, B1, 2.5) + 1.1 * decay(N, B2, 2.2) + exp1 * .5);
   core.rings.forEach((r, i) => { r.visible = asm > .5; r.rotation.set(1.2 + i * .5 + A * (.3 + i * .2), A * (.2 - i * .4), 0); r.material.opacity = asm; });
-  coreLight.intensity = asm * (40 + beat * 30) + decay(N, 50.2, 2) * 100;
-  setO(labH, win(N, 12.2, 24, .5) + win(N, 44.5, 53, .5) + (N > 84 ? seg(N, 84.5, 85.5) * .9 : 0));
+  coreLight.intensity = asm * (40 + beat * 10) + decay(N, B2, 2) * 70 + decay(N, B1, 2) * 50;
+  setO(labH, (win(N, 12.2, 24, .5) + win(N, 44.5, 53, .5)) * seg(camera.position.distanceTo(P.H), 9, 12) + (N > 84 ? seg(N, 84.5, 85.5) * .9 : 0));
   if (!UI.hn) UI.hn = $('hn'); if (UI.hn) { const t = second ? 'H(2)' : 'H(1)'; if (UI.hn.textContent !== t) UI.hn.textContent = t; }
 
   // 金絲雀（兩輪）
@@ -776,7 +859,7 @@ function update(T, A, dt) {
   canaryTrail.material.uniforms.uHead.value = pr < 0 ? 0 : pr; canaryTrail.material.uniforms.uTail.value = Math.max(ctail, pr - .35); canaryTrail.material.uniforms.uAmt.value = ctrack * (1 - ctail);
   const pp = cvCanary.getPointAt(clamp(pr)); probe.position.copy(pp);
   probe.visible = pr >= 0 && ctail < .99; probeGlow.position.copy(pp); probeGlow.set(probe.visible ? (1 + .5 * (scan >= 0 ? 1 : 0)) * (1 - ctail) : 0);
-  market.u.uA.value = mA_ * (1 + beat * .3); market.u.uScan.value = scan >= 0 ? 1 - scan : -1; market.u.uOk.value = ok; market.u.uBars.value = scan >= 0 ? scan : ok;
+  market.u.uA.value = mA_ * (1 + beat * .3); market.grp.visible = mA_ > .002; market.u.uScan.value = scan >= 0 ? 1 - scan : -1; market.u.uOk.value = ok; market.u.uBars.value = scan >= 0 ? scan : ok;
   scanCone.u.uI.value = scan >= 0 ? win(scan, 0, 1, .15) : 0; scanCone.m.visible = scanCone.u.uI.value > 0;
   okRing.set(ok > 0 && ok < 1 || (N > 19.8 && N < 21.4) || (N > 54.8 && N < 56.4) ? 1 : 0, seg(N, N < 40 ? 19.8 : 54.8, (N < 40 ? 19.8 : 54.8) + 1.6));
   setO(labCan, mA_); setO(labOk, ok * mA_);
@@ -789,7 +872,7 @@ function update(T, A, dt) {
   const inR2 = N >= 52;
   const R = inR2 ? r2 : r1;
   const drain = inR2 ? seg(N, 64.4, 66) : seg(N, 37.2, 39.6);
-  const abI = (N < 52 ? 1 : 1) * (1 + beat * .4);
+  const abI = 1 + beat * .4 + pk * .9;
   toSplit.set(R.split, abI, drain * R.split, pulses(N, [55, 55.25], .9));
   toSplitFlow.material.uniforms.uHead.value = R.split; toSplitFlow.material.uniforms.uTail.value = drain * R.split; toSplitFlow.material.uniforms.uAmt.value = R.split > 0 ? 1 : 0;
   const trackDim = N > 39.6 && N < 55.6 ? .35 : 1;
@@ -818,7 +901,7 @@ function update(T, A, dt) {
   gate.grp.rotation.y = A * .4 + 6 * eio(seg(N, 35.6, 37)) + 6 * eio(seg(N, 62.8, 64));
   gate.grp.visible = N > 5;
   const gv = sstep(seg(N, 9, 11)); gate.grp.scale.setScalar(Math.max(.001, gv));
-  gate.glow.material.uniforms.uColor.value.copy(gateC).multiplyScalar(1.2); gate.glow.set(gv * (.4 + beat * .3) + 1.2 * decay(N, NO, 3) + .9 * decay(N, YES, 2.5));
+  gate.glow.material.uniforms.uColor.value.copy(gateC).multiplyScalar(1.2); gate.glow.set(gv * (.4 + beat * .3) + 1.2 * decay(N, NO, 3) + .5 * decay(N, YES, 2.5));
   gate.shock.material.uniforms.uColor.value.copy(N >= YES ? C(GOLD) : C(RED)).multiplyScalar(1.6);
   const shP = N >= YES ? seg(N, YES, YES + 1.4) : seg(N, NO, NO + 1.4); gate.shock.set((N >= NO && N < NO + 1.4) || (N >= YES && N < YES + 1.4) ? 1 : 0, shP);
   gateLight.color.copy(gateC); gateLight.intensity = gv * 30 + 120 * decay(N, NO, 3) + 150 * decay(N, YES, 2.5);
@@ -839,7 +922,7 @@ function update(T, A, dt) {
 
   // 是 → 城市 → 回饋
   const yh = eio(seg(N, YES + .2, YES + 2.2));
-  yesTrack.set(yh, (N >= YES ? .9 : 0) * (1 + beat * .3)); yesFlow.material.uniforms.uHead.value = yh; yesFlow.material.uniforms.uAmt.value = N >= YES ? 1 : 0;
+  yesTrack.set(yh, (N >= YES ? .9 : 0) * (1 + beat * .3 + pk * .8)); yesFlow.material.uniforms.uHead.value = yh; yesFlow.material.uniforms.uAmt.value = N >= YES ? 1 : 0;
   pilot.visible = N > YES + .2 && N < YES + 2.4; const pp2 = cvYes.getPointAt(clamp(yh)); pilot.position.copy(pp2); pilotGlow.position.copy(pp2); pilotGlow.set(pilot.visible ? 1.6 : 0);
   exitRing.set(N >= 65 && N < 66.6 ? 1 : 0, seg(N, 65, 66.6));
   city.u.uBase.value = sstep(seg(N, 9, 12));
@@ -847,7 +930,7 @@ function update(T, A, dt) {
   city.u.uAll.value = eout(seg(N, 80.6, 84)) * 1.6;
   setO(labCity, win(N, 66.4, 79, .5) + (N > 84 ? seg(N, 84.5, 85.5) * .9 : 0)); setO(labSmall, win(N, 67.2, 72, .4));
   userPts.material.uniforms.uAmt.value = win(N, 69.6, 80, .8); userPts.material.uniforms.uProg.value = 2 + 6 * seg(N, 69.6, 79);
-  const cvA_ = win(N, 69.4, 81, .6); curves.uA.value = cvA_; curves.uDraw.value = eio(seg(N, 70, 72.6)); curves.uConv.value = eio(seg(N, 73.2, 77.4)); setO(labCurves, cvA_);
+  const cvA_ = win(N, 69.4, 81, .6); curves.uA.value = cvA_; curves.mesh.visible = cvA_ > .002; curves.uDraw.value = eio(seg(N, 70, 72.6)); curves.uConv.value = eio(seg(N, 73.2, 77.4)); setO(labCurves, cvA_);
   const fh = eio(seg(N, 72.6, 76.2));
   feed.set(fh, (N > 72.6 ? 1.1 : 0) * (1 + beat * .4) * (N > 84 ? .8 : 1) + 1.2 * decay(N, 78, 3), 0, pulses(N, [76.4, 78, 79, 80], 1.6));
   feedFlow.material.uniforms.uHead.value = fh; feedFlow.material.uniforms.uAmt.value = N > 72.6 ? 1 : 0;
@@ -868,6 +951,11 @@ function update(T, A, dt) {
   outGate.ring.set(N >= IGN && N < IGN + 2.4 ? 1 : 0, seg(N, IGN, IGN + 2.4));
   setO(labOut, seg(N, IGN + .6, IGN + 1.4)); setO(labOutSub, seg(N, IGN + 1, IGN + 1.8));
 
+  // 地面衝擊波：drop、否、是、H(2) 重組
+  const gHits = [[36, CY], [NO, RED], [YES, GOLD]]; let gh = null; for (const h of gHits) if (N >= h[0] && N < h[0] + 1.8) gh = h;
+  gateFloorRing.material.uniforms.uColor.value.set(gh ? gh[1] : CY).multiplyScalar(2.6); gateFloorRing.set(gh ? 1 : 0, gh ? eout(seg(N, gh[0], gh[0] + 1.8)) : 0);
+  coreFloorRing.set(N >= 50.2 && N < 51.6 ? 1 : 0, eout(seg(N, 50.2, 51.6)));
+
   // 地板光池
   pool(0, P.IN, 9, C(WHITE), fun * .6 + 1.5 * decay(N, 76.2, 2));
   pool(1, P.H, 6, coreC, asm * (.7 + beat * .5) + 1.5 * decay(N, 50.2, 2));
@@ -879,8 +967,8 @@ function update(T, A, dt) {
   pool(7, S.mouse.y > -50 ? S.mouse : V(0, 0, -999), 4, C(CY), REC ? 0 : .5);
 
   // 封包（雙擊）
-  const pk = A - S.pkt, pd = pk * 18;
-  if (pk >= 0 && pd < packetRoute.len + 30) {
+  const pkt = A - S.pkt, pd = pkt * 18;
+  if (pkt >= 0 && pd < packetRoute.len + 30) {
     const arr = packet.g.attributes.position.array;
     for (let i = 0; i < PKT_N; i++) { const p = routeAt(pd - i * .35); arr[i * 3] = p.x; arr[i * 3 + 1] = p.y; arr[i * 3 + 2] = p.z; }
     packet.g.attributes.position.needsUpdate = true; packet.u.uAmt.value = 1 - seg(pd, packetRoute.len, packetRoute.len + 20);
@@ -922,26 +1010,30 @@ function update(T, A, dt) {
   mouseLight.position.copy(S.mouse).add(V(0, 1.5, 0)); mouseLight.intensity = REC ? 0 : 20;
 
   // 後製
-  bloom.strength = .55 + beat * .12 + flash * .3;
-  fin.uniforms.uTime.value = A; fin.uniforms.uFlash.value = flash * .3; fin.uniforms.uCA.value = 1 + flash * 6 + on * .6;
-  fin.uniforms.uStreak.value = 1 + flash * 1.5;
+  bloom.strength = .55 + beat * .08 + flash * .18;
+  fin.uniforms.uTime.value = A; fin.uniforms.uFlash.value = 0; fin.uniforms.uCA.value = 1 + flash * .8;
+  fin.uniforms.uStreak.value = 1;
   const fadeOut = (REC || S.playing) ? seg(T, DUR - 1.6, DUR) : 0;
   fin.uniforms.uFade.value = Math.max(1 - seg(T, 0, .8), fadeOut);
 
   // 鏡頭
   const sc = storyCam(N);
-  const sh = V(Math.sin(A * 37.1) + Math.sin(A * 23.3), Math.sin(A * 29.7 + 1) + Math.sin(A * 17.9), Math.sin(A * 31.3 + 2)).multiplyScalar(shake * .45);
-  const hand = V(Math.sin(A * .7) * .07, Math.sin(A * .53 + 1) * .06, 0);
+  const hand = V(Math.sin(A * .7) * .05, Math.sin(A * .53 + 1) * .04, 0);
+  // 後座力：沿視線往後退、略往下沉，一次就回穩
+  const back = sc.p.clone().sub(sc.t).normalize().multiplyScalar(recoil).add(V(0, -.22 * recoil, 0));
+  // 鏡頭移動越快，放射模糊越明顯（速度感，不是閃光）
+  const sp = storyCam(N + .04).p.distanceTo(sc.p) / .04;
+  fin.uniforms.uZoom.value = S.cam === 'story' ? clamp((sp - 6) / 60) * .22 : 0;
   if (S.cam === 'story') {
     if (S.blend < 1 && S.from) {
       S.blend = Math.min(1, S.blend + dt / 1.4); const e = eio(S.blend);
       camCur.p.copy(S.from.p).lerp(sc.p, e); camCur.t.copy(S.from.t).lerp(sc.t, e); camCur.fov = lerp(S.from.fov, sc.fov, e);
     } else { camCur.p.copy(sc.p); camCur.t.copy(sc.t); camCur.fov = sc.fov; }
-    camera.position.copy(camCur.p).add(sh).add(hand);
-    camera.lookAt(camCur.t.clone().add(sh.clone().multiplyScalar(.5)));
+    camera.position.copy(camCur.p).add(hand).add(back);
+    camera.lookAt(camCur.t);
     if (camera.fov !== camCur.fov) { camera.fov = camCur.fov; camera.updateProjectionMatrix(); }
     controls.target.copy(camCur.t);
-  } else { controls.update(); camera.position.add(sh); }
+  } else { controls.update(); camera.position.add(back.multiplyScalar(.5)); }
   const scale = H * PR / (2 * Math.tan(camera.fov * Math.PI / 360));
   for (const p of pts) p.material.uniforms.uScale.value = scale;
   packet.u.uScale.value = scale;
@@ -963,6 +1055,7 @@ function sfx(n, vol = .5, rate = 1, delay = 0) {
 if (REC) {
   window.render = t => { S.T = t; update(t, t, 1 / 30); draw(); };
   window.DURATION = DUR;
+  window.__dbg = { bloom, fin, scene, camera, renderer };
   update(toT(86), toT(86), 1); draw(); update(toT(50), toT(50), 1); draw();
   window.__ready = true;
 } else {
