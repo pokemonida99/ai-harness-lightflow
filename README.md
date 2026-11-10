@@ -1,6 +1,6 @@
 # AI Harness 光流實驗場
 
-把〈AI Harness 模擬測試架構〉流程圖改編成一座霓虹光流 3D 實驗場：真實數據落進模擬結界，假設 H(n) 經過金絲雀測試、A/B 測試、閘門判斷，失敗就進 Loop 迭代修正，達標後走進真實用戶閉環，最後升起落地決策的光柱。
+把〈AI Harness 模擬測試架構〉流程圖改編成有英文旁白、中英雙語字幕的一座霓虹光流 3D 實驗場：真實數據落進模擬結界，假設 H(n) 經過金絲雀測試、A/B 測試、閘門判斷，失敗就進 Loop 迭代修正，達標後走進真實用戶閉環，最後升起落地決策的光柱。
 
 **線上玩：** https://pokemonida99.github.io/ai-harness-lightflow/
 
@@ -19,6 +19,7 @@
 - Three.js r160：鏡面反射地板＋霓虹網格、黑鉻多面體（自製環境貼圖）、沿曲線流動的 GPU 粒子（路徑存成資料貼圖）、雙層光軌、光牆、全息面板 shader
 - 後製：UnrealBloom、橫向光芒、色差、顆粒、暗角
 - 畫面全部由「故事時間」決定；`timing.js` 把故事時間對到配樂各段落的實際秒數，同一條時間軸可即時互動，也可逐格錄成影片（`tools/record.mjs`）
+- 英文旁白（`vo/`）：一次生成 19 句，依最長靜音切句（`tools/split_vo.py`），對齊字幕；旁白出現時配樂自動壓低約 7 dB
 - 配樂剪輯（`tools/edit_music.py`）在段落起點剪接；節拍包絡（`tools/audio_env.py`）讓畫面跟著低頻脈動；音效依故事時間混進配樂（`tools/mix_sfx.py`），大音效時配樂自動閃避
 - 依幀率自動調整渲染解析度
 
@@ -32,5 +33,6 @@ npm run mix     # 重新混音（需要 Python 3 + numpy、ffmpeg；先跑 npm r
 
 - 配樂：“Chase Quantized”，由作者以 SUNO 生成（授權），本倉庫只收剪輯混音後的版本
 - 音效：ElevenLabs Sound Effects 生成，非商業練習用途
+- 英文旁白：ElevenLabs “Chuck Miller”（Multilingual v2）；旁白稿由 GPT 依畫面秒數撰寫（`vo/narration_en.json`）
 - 概念圖與分鏡討論：GPT（`art/`）
 - 內容改編自〈AI Harness 模擬測試架構〉圖解，練習作品；視覺只借霓虹光線美學，未使用任何電影的角色、載具或標誌設計

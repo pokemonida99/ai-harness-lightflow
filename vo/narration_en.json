@@ -1,0 +1,21 @@
+[
+  "Real data enters. The mission begins.",
+  "Inside the AI Harness sandbox. Simulate first. Then validate.",
+  "Build the first hypothesis. H(1).",
+  "Canary test. AI probes the new version's potential.",
+  "Direction looks viable. Advance to the A/B test.",
+  "Split users randomly. Show both versions at the same time.",
+  "Control A. Variant B. Compare results. Which version performs better?",
+  "Prediction target met?",
+  "No. Enter the loop.",
+  "Use simulation results to refine the hypothesis.",
+  "H(2). Run it again.",
+  "Another canary test. Another A/B comparison.",
+  "Bring the hypothesis closer to reality.",
+  "Yes. Prediction target met.",
+  "Start small. Validate with real users.",
+  "Real feedback calibrates the simulation.",
+  "Predictions match real behavior.",
+  "Validation complete. Launch fully. Scale. Lock strategy.",
+  "AI Harness. Real data. Simulated A/B. Real users. Closed loop."
+]

@@ -50,8 +50,11 @@ html,body{margin:0;height:100%;background:#010308;overflow:hidden;color:var(--in
 #tc i{display:inline-block;width:.6em;height:.6em;border-radius:50%;background:var(--cy);margin-right:.7em;box-shadow:0 0 8px var(--cy);animation:blink 1.2s infinite}
 @keyframes blink{50%{opacity:.25}}
 
-#cap{position:absolute;left:0;right:0;bottom:13vh;text-align:center;font-size:clamp(20px,2.5vw,48px);font-weight:800;letter-spacing:.16em;pointer-events:none;color:#effdff;text-shadow:0 0 22px rgba(53,230,255,.55),0 0 2px #000,0 2px 6px #000}
-#cap span{display:inline-block;will-change:transform,opacity,filter}
+#cap{position:absolute;left:6vw;right:6vw;bottom:12vh;text-align:center;font-size:clamp(20px,2.5vw,48px);font-weight:800;letter-spacing:.16em;pointer-events:none;color:#effdff;text-shadow:0 0 22px rgba(53,230,255,.55),0 0 2px #000,0 2px 6px #000}
+#cap .en{margin-top:.5em;font-family:"Rajdhani","Avenir Next Condensed","Helvetica Neue",sans-serif;font-size:clamp(12px,1.1vw,21px);font-weight:600;letter-spacing:.06em;line-height:1.2;color:#b8e2ee}
+#cap .en span,#cap .zh span{display:inline-block;will-change:transform,opacity,filter}
+#cap .zh{font-size:clamp(20px,2.4vw,46px);font-weight:800;letter-spacing:.16em}
+#cap.gold .en{color:#e8cfa8}#cap.red .en{color:#f0a8b2}#cap.green .en{color:#a8e8cc}
 #cap.red{color:#ffb0ba;text-shadow:0 0 22px rgba(255,40,70,.7),0 2px 6px #000}
 #cap.gold{color:#ffe6c2;text-shadow:0 0 24px rgba(255,170,70,.75),0 2px 6px #000}
 #cap.green{color:#c8ffe6;text-shadow:0 0 22px rgba(60,255,170,.65),0 2px 6px #000}
@@ -94,7 +97,7 @@ html,body{margin:0;height:100%;background:#010308;overflow:hidden;color:var(--in
 <div id="tc"><i></i><span id="tcv">SIM RUN 01</span></div>
 <div id="cap"></div>
 <div id="endcard"><div class="k">AI TESTING FRAMEWORK</div><h1>AI HARNESS</h1><h2>模擬測試架構</h2><div>用真實數據模擬 A/B 版本，再回到真實用戶閉環驗證</div></div>
-<div id="credit">Music: “Chase Quantized” 使用者以 SUNO 生成（授權）　／　音效：ElevenLabs 生成　／　改編自〈AI Harness 模擬測試架構〉圖解 · 練習作品</div>
+<div id="credit">Music: “Chase Quantized” 使用者以 SUNO 生成（授權）　／　音效：ElevenLabs 生成　／　Narration: ElevenLabs “Chuck Miller”　／　改編自〈AI Harness 模擬測試架構〉圖解 · 練習作品</div>
 <button id="director">🎥 回到導演視角</button>
 <div id="ctrl">
   <button id="prev">←</button>

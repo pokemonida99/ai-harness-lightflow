@@ -23605,24 +23605,26 @@
   var CUBE = { x0: -20, x1: 20, y0: 0, y1: 15, z0: -12, z1: 12 };
   var STEPS = [[0, "\u771F\u5BE6\u6578\u64DA"], [12, "\u5047\u8A2D H(n)"], [15.5, "\u91D1\u7D72\u96C0\u6E2C\u8A66"], [24, "A/B \u6E2C\u8A66"], [36, "Loop \u8FED\u4EE3"], [64, "\u771F\u5BE6\u7528\u6236\u9589\u74B0"], [80, "\u843D\u5730\u6C7A\u7B56"]];
   var CAPS = [
-    [0.9, 5, "\u771F\u5BE6\u6578\u64DA\uFF0C\u9032\u5834\u3002"],
-    [6.4, 11.4, "\u5148\u6A21\u64EC\uFF0C\u518D\u9A57\u8B49\u3002"],
-    [12.2, 15.3, "\u5EFA\u7ACB\u5047\u8A2D H(1)\u3002"],
-    [15.7, 19.4, "\u91D1\u7D72\u96C0\uFF0C\u5148\u63A2\u8DEF\u3002"],
-    [19.9, 23.7, "\u65B9\u5411\u53EF\u884C\uFF0C\u9032\u5165\u6E2C\u8A66\u3002", "green"],
-    [24.4, 28.8, "\u96A8\u6A5F\u5206\u7D44\uFF0C\u540C\u6642\u5C55\u793A\u3002"],
-    [29.4, 35.6, "\u6BD4\u8F03\u5169\u7248\u6210\u6548\u3002"],
-    [36.3, 38.7, "\u9810\u6E2C\u76EE\u6A19\u9054\u6210\uFF1F"],
-    [38.9, 42.7, "\u5426\u2014\u2014\u9032\u5165\u8FED\u4EE3\u3002", "red"],
-    [43.1, 47.8, "\u7528\u6A21\u64EC\u7D50\u679C\uFF0C\u4FEE\u6B63\u5047\u8A2D\u3002"],
-    [48.5, 51.8, "H(2)\uFF0C\u518D\u8DD1\u4E00\u6B21\u3002"],
-    [52.3, 57.4, "\u518D\u63A2\u8DEF\uFF0C\u518D\u6BD4\u8F03\u3002"],
-    [57.8, 63.6, "\u8B93\u5047\u8A2D\u66F4\u63A5\u8FD1\u771F\u5BE6\u3002"],
-    [64.3, 67.6, "\u662F\uFF0C\u9810\u6E2C\u9054\u6A19\u3002", "gold"],
-    [67.9, 71.6, "\u5C0F\u898F\u6A21\u4E0A\u7DDA\u9A57\u8B49\u3002"],
-    [71.9, 75.6, "\u5BE6\u6E2C\u56DE\u994B\uFF0C\u6821\u6B63\u6A21\u64EC\u3002"],
-    [75.9, 79.6, "\u9810\u6E2C\u8207\u5BE6\u6E2C\uFF0C\u4E00\u81F4\u3002", "gold"],
-    [80.3, 83.6, "\u9A57\u8B49\u901A\u904E\uFF0C\u843D\u5730\u6C7A\u7B56\u3002", "gold"]
+    // [起, 迄, 中文, 色, 英文旁白]
+    [0.84, 3.25, "\u771F\u5BE6\u6578\u64DA\uFF0C\u9032\u5834\u3002", "", "Real data enters. The mission begins."],
+    [6.34, 10.08, "\u5148\u6A21\u64EC\uFF0C\u518D\u9A57\u8B49\u3002", "", "Inside the AI Harness sandbox. Simulate first. Then validate."],
+    [12.14, 14.54, "\u5EFA\u7ACB\u5047\u8A2D H(1)\u3002", "", "Build the first hypothesis. H(1)."],
+    [15.65, 18.58, "\u91D1\u7D72\u96C0\uFF0C\u5148\u63A2\u8DEF\u3002", "", "Canary test. AI probes the new version's potential."],
+    [19.85, 22.89, "\u65B9\u5411\u53EF\u884C\uFF0C\u9032\u5165\u6E2C\u8A66\u3002", "green", "Direction looks viable. Advance to the A/B test."],
+    [24.34, 26.98, "\u96A8\u6A5F\u5206\u7D44\uFF0C\u540C\u6642\u5C55\u793A\u3002", "", "Split users randomly. Show both versions at the same time."],
+    [29.34, 33.27, "\u6BD4\u8F03\u5169\u7248\u6210\u6548\u3002", "", "Control A. Variant B. Compare results. Which version performs better?"],
+    [36.22, 37.88, "\u9810\u6E2C\u76EE\u6A19\u9054\u6210\uFF1F", "", "Prediction target met?"],
+    [38.83, 40.62, "\u5426\u2014\u2014\u9032\u5165\u8FED\u4EE3\u3002", "red", "No. Enter the loop."],
+    [43.03, 46.26, "\u7528\u6A21\u64EC\u7D50\u679C\uFF0C\u4FEE\u6B63\u5047\u8A2D\u3002", "", "Use simulation results to refine the hypothesis."],
+    [48.42, 51.01, "H(2)\uFF0C\u518D\u8DD1\u4E00\u6B21\u3002", "", "H(2). Run it again."],
+    [52.21, 56.69, "\u518D\u63A2\u8DEF\uFF0C\u518D\u6BD4\u8F03\u3002", "", "Another canary test. Another A/B comparison."],
+    [57.71, 61.01, "\u8B93\u5047\u8A2D\u66F4\u63A5\u8FD1\u771F\u5BE6\u3002", "", "Bring the hypothesis closer to reality."],
+    [64.22, 66.63, "\u662F\uFF0C\u9810\u6E2C\u9054\u6A19\u3002", "gold", "Yes. Prediction target met."],
+    [67.82, 71.1, "\u5C0F\u898F\u6A21\u4E0A\u7DDA\u9A57\u8B49\u3002", "", "Start small. Validate with real users."],
+    [71.83, 74.57, "\u5BE6\u6E2C\u56DE\u994B\uFF0C\u6821\u6B63\u6A21\u64EC\u3002", "", "Real feedback calibrates the simulation."],
+    [75.82, 78.43, "\u9810\u6E2C\u8207\u5BE6\u6E2C\uFF0C\u4E00\u81F4\u3002", "gold", "Predictions match real behavior."],
+    [78.48, 83.45, "\u9A57\u8B49\u901A\u904E\uFF0C\u843D\u5730\u6C7A\u7B56\u3002", "gold", "Validation complete. Launch fully. Scale. Lock strategy."],
+    [83.48, 89.76, "\u771F\u5BE6\u6578\u64DA\uFF0C\u6A21\u64EC A/B\uFF0C\u771F\u5BE6\u7528\u6236\uFF0C\u9589\u74B0\u9A57\u8B49\u3002", "gold", "AI Harness. Real data. Simulated A/B. Real users. Closed loop."]
   ];
   var CARDS = {
     in: { at: V(-38, 17.5, 0), c: "#e8fbff", t: "INPUT \u771F\u5BE6\u6578\u64DA", b: "\u7528\u6236\u884C\u70BA\u30FB\u4EA4\u6613\u7D00\u9304\u30FB\u5E02\u5834\u8CC7\u6599<br>\u6A21\u64EC\u5F9E\u771F\u5BE6\u51FA\u767C" },
@@ -24811,14 +24813,22 @@ float fbm(vec3 p){float s=0.,a=.5;for(int i=0;i<4;i++){s+=a*snoise(p);p*=2.03;a*
     if (ci !== capIdx) {
       capIdx = ci;
       if (ci >= 0) {
-        UI.cap.className = CAPS[ci][3] || "";
-        UI.cap.innerHTML = [...CAPS[ci][2]].map((ch) => `<span>${ch === " " ? "&nbsp;" : ch}</span>`).join("");
+        const c = CAPS[ci];
+        UI.cap.className = c[3] || "";
+        UI.cap.innerHTML = `<div class="zh">${[...c[2]].map((ch) => `<span>${ch}</span>`).join("")}</div><div class="en">${c[4].split(" ").map((w) => `<span>${w}</span>`).join(" ")}</div>`;
       } else
         UI.cap.innerHTML = "";
     }
     if (ci >= 0) {
       const c = CAPS[ci], out = clamp2((c[1] - N) / 0.3);
-      [...UI.cap.children].forEach((s, i) => {
+      const ws = UI.cap.querySelectorAll(".en span"), rate = Math.max(2.2, ws.length / Math.max(0.6, (c[1] - c[0]) * 0.55));
+      ws.forEach((s, i) => {
+        const a = clamp2(((N - c[0]) * rate - i) * 1.6);
+        s.style.opacity = (a * out).toFixed(3);
+        s.style.transform = `translateY(${((1 - a) * 10).toFixed(1)}px)`;
+        s.style.filter = a < 1 ? `blur(${((1 - a) * 5).toFixed(1)}px)` : "none";
+      });
+      UI.cap.querySelectorAll(".zh span").forEach((s, i) => {
         const a = clamp2((N - c[0]) * 9 - i * 0.45);
         s.style.opacity = (a * out).toFixed(3);
         s.style.transform = `translateY(${((1 - a) * 12).toFixed(1)}px)`;

@@ -1,4 +1,4 @@
-# 配樂＋音效混成一條音軌：python3 work/mix_sfx.py（在專案根目錄執行）
+# 配樂＋音效＋旁白混成一條音軌：python3 tools/mix_sfx.py（在專案根目錄執行）
 # 音效來自 ElevenLabs；時間點寫故事時間 N，用 tA() 換成配樂實際時間，和 main.js / timing.js 一致。
 import subprocess, numpy as np
 SR = 44100; DUR = 95.98; N = int(SR * DUR)
@@ -85,9 +85,7 @@ On('lock_on', 78.0 - .64, .25)
 On('resolve', 80.0, .75); On('impact', 80.0, .45)
 # 片尾
 On('chime', 84.8, .2, 0, .75)
-# 字幕：每句一記輕打字聲
-CAPN = [0.9, 6.4, 12.2, 15.7, 24.4, 29.4, 43.1, 48.5, 52.3, 57.8, 67.9, 71.9, 75.9]
-for c in CAPN: On('typewriter_key', c + .02, .16 * J(.15), rng.uniform(-.2, .2), J(.05), .35)
+# 有旁白後，字幕不再加打字聲
 
 # 音效整體推高；大音效出現時配樂自動閃避（sidechain ducking），最後交給 ffmpeg 限幅
 fx *= 1.5
@@ -96,7 +94,27 @@ duck = np.zeros(N, np.float32); g = 0.; rel = np.exp(-1 / (.45 * SR))
 tgt = np.clip((e - .15) / .6, 0, 1) * .5                    # 最多閃避約 −6 dB
 for i in range(N):
     g = tgt[i] if tgt[i] > g else g * rel + tgt[i] * (1 - rel); duck[i] = g
-mix = (music * 1.0 * (1 - duck)[:, None] + fx).astype(np.float32)
+# 英文旁白（ElevenLabs Chuck Miller，Multilingual v2）：依最長靜音切成 19 句，起點對齊字幕
+import json
+vsrc = dec('work/narration_norm.wav')   # 由 vo/narration_chuck_miller.mp3 經 highpass＋壓縮＋loudnorm 產生
+VSEG = json.load(open('vo/vo_segs.json'))
+VSTART = [1.12, 7.99, 15.23, 19.60, 24.84, 30.45, 36.69, 45.21, 47.65, 51.58, 56.63, 60.14, 64.43, 69.55, 72.92, 76.67, 80.41, 82.9, 88.4]
+VTEMPO = {18: 1.08}   # 片尾那句稍微加快，才收得進片長
+vo = np.zeros((N, 2), np.float32); placed = []
+for (a, b), st in zip(VSEG, VSTART):
+    seg_ = vsrc[max(0, int((a - .04) * SR)): int((b + .12) * SR)].copy(); fl = int(.03 * SR)
+    r = VTEMPO.get(len(placed), 1.0)
+    if r != 1.0:   # 用 atempo 加速，不改音高
+        seg_ = np.frombuffer(subprocess.run(['ffmpeg', '-v', 'error', '-f', 'f32le', '-ar', str(SR), '-ac', '2', '-i', '-', '-af', f'atempo={r}', '-f', 'f32le', '-'], input=seg_.astype(np.float32).tobytes(), capture_output=True, check=True).stdout, np.float32).reshape(-1, 2).copy(); b = a + (b - a) / r
+    seg_[:fl] *= np.linspace(0, 1, fl)[:, None]; seg_[-fl:] *= np.linspace(1, 0, fl)[:, None]
+    i = int((st + .05) * SR); n = min(len(seg_), N - i); vo[i:i + n] += seg_[:n] * 1.15
+    placed.append([round(st + .05, 3), round(st + .05 + (b - a), 3)])
+json.dump(placed, open('work/vo_times.json', 'w'))
+ve = np.abs(vo).max(1); k = int(.05 * SR); ve = np.convolve(ve, np.ones(k) / k, 'same')
+vd = np.zeros(N, np.float32); g = 0.; att = np.exp(-1 / (.03 * SR)); rel2 = np.exp(-1 / (.35 * SR)); vt = np.clip(ve / .05, 0, 1)
+for i in range(N):
+    g = g * att + vt[i] * (1 - att) if vt[i] > g else g * rel2 + vt[i] * (1 - rel2); vd[i] = g
+mix = (music * 1.0 * (1 - duck)[:, None] * (1 - .55 * vd)[:, None] + fx * (1 - .3 * vd)[:, None] + vo).astype(np.float32)
 mix *= 1.05 / np.percentile(np.abs(mix), 99.95)            # 極少數瞬間峰值交給限幅器
 for name, data in (('work/sfx_only.wav', fx), ('work/soundtrack.wav', mix)):
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'f32le', '-ar', str(SR), '-ac', '2', '-i', '-', name], input=data.astype(np.float32).tobytes(), check=True)
